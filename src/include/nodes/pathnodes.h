@@ -1693,6 +1693,7 @@ typedef struct GroupingSetsPath
 	Path		path;
 	Path	   *subpath;		/* path representing input source */
 	AggStrategy aggstrategy;	/* basic strategy */
+	AggSplit	aggsplit;		/* agg-splitting mode, see nodes.h */
 	List	   *rollups;		/* list of RollupData */
 	List	   *qual;			/* quals (HAVING quals), if any */
 } GroupingSetsPath;
@@ -2397,6 +2398,7 @@ typedef struct JoinPathExtraData
 #define GROUPING_CAN_USE_SORT       0x0001
 #define GROUPING_CAN_USE_HASH       0x0002
 #define GROUPING_CAN_PARTIAL_AGG	0x0004
+#define GROUPING_WITH_APPEND		0x0008
 
 /*
  * What kind of partitionwise aggregation is in use?

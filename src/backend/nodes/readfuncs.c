@@ -637,6 +637,17 @@ _readGroupingFunc(void)
 }
 
 /*
+ * _readGroupingSetId
+ */
+static GroupingSetId *
+_readGroupingSetId(void)
+{
+	READ_LOCALS_NO_FIELDS(GroupingSetId);
+
+	READ_DONE();
+}
+
+/*
  * _readWindowFunc
  */
 static WindowFunc *
@@ -2603,6 +2614,8 @@ parseNodeString(void)
 		return_value = _readAggref();
 	else if (MATCH("GROUPINGFUNC", 12))
 		return_value = _readGroupingFunc();
+	else if (MATCH("GROUPINGSETID", 13))
+		return_value = _readGroupingSetId();
 	else if (MATCH("WINDOWFUNC", 10))
 		return_value = _readWindowFunc();
 	else if (MATCH("SUBSCRIPTINGREF", 15))

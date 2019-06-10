@@ -63,6 +63,9 @@ exprType(const Node *expr)
 		case T_GroupingFunc:
 			type = INT4OID;
 			break;
+		case T_GroupingSetId:
+			type = INT4OID;
+			break;
 		case T_WindowFunc:
 			type = ((const WindowFunc *) expr)->wintype;
 			break;
@@ -739,6 +742,9 @@ exprCollation(const Node *expr)
 			coll = ((const Aggref *) expr)->aggcollid;
 			break;
 		case T_GroupingFunc:
+			coll = InvalidOid;
+			break;
+		case T_GroupingSetId:
 			coll = InvalidOid;
 			break;
 		case T_WindowFunc:
@@ -1904,6 +1910,9 @@ expression_tree_walker(Node *node,
 					return true;
 			}
 			break;
+		case T_GroupingSetId:
+			/* WIP: parallel grouping sets */
+			break;
 		case T_WindowFunc:
 			{
 				WindowFunc *expr = (WindowFunc *) node;
@@ -2552,6 +2561,15 @@ expression_tree_mutator(Node *node,
 				newnode->refs = list_copy(grouping->refs);
 				newnode->cols = list_copy(grouping->cols);
 
+				return (Node *) newnode;
+			}
+			break;
+		case T_GroupingSetId:
+			{
+				GroupingSetId *gsetid = (GroupingSetId *) node;
+				GroupingSetId *newnode;
+
+				FLATCOPY(newnode, gsetid, GroupingSetId);
 				return (Node *) newnode;
 			}
 			break;

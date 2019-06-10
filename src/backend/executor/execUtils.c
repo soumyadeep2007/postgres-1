@@ -285,6 +285,8 @@ CreateExprContext(EState *estate)
 
 	econtext->ecxt_callbacks = NULL;
 
+	econtext->groupingset_id = -1;
+
 	/*
 	 * Link the ExprContext into the EState to ensure it is shut down when the
 	 * EState is freed.  Because we use lcons(), shutdowns will occur in

@@ -249,6 +249,14 @@ _equalGroupingFunc(const GroupingFunc *a, const GroupingFunc *b)
 }
 
 static bool
+_equalGroupingSetId(const GroupingSetId *a __attribute__((unused)),
+		const GroupingSetId *b __attribute__((unused)))
+{
+	return true;
+}
+
+
+static bool
 _equalWindowFunc(const WindowFunc *a, const WindowFunc *b)
 {
 	COMPARE_SCALAR_FIELD(winfnoid);
@@ -3048,6 +3056,9 @@ equal(const void *a, const void *b)
 			break;
 		case T_GroupingFunc:
 			retval = _equalGroupingFunc(a, b);
+			break;
+		case T_GroupingSetId:
+			retval = _equalGroupingSetId(a, b);
 			break;
 		case T_WindowFunc:
 			retval = _equalWindowFunc(a, b);

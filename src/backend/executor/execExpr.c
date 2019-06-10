@@ -822,6 +822,17 @@ ExecInitExprRec(Expr *node, ExprState *state,
 				break;
 			}
 
+		case T_GroupingSetId:
+			{
+				/*
+				 * WIP: parallel grouping sets
+				 */
+				scratch.opcode = EEOP_GROUPINGSET_ID;
+
+				ExprEvalPushStep(state, &scratch);
+				break;
+			}
+
 		case T_WindowFunc:
 			{
 				WindowFunc *wfunc = (WindowFunc *) node;

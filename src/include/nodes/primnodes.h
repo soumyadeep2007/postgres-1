@@ -351,6 +351,14 @@ typedef struct GroupingFunc
 } GroupingFunc;
 
 /*
+ * WIP: parallel grouping sets
+ */
+typedef struct GroupingSetId
+{
+	Expr      xpr;
+} GroupingSetId;
+
+/*
  * WindowFunc
  */
 typedef struct WindowFunc

@@ -1840,11 +1840,24 @@ set_upper_references(PlannerInfo *root, Plan *plan, int rtoffset)
 		/* If it's a sort/group item, first try to match by sortref */
 		if (tle->ressortgroupref != 0)
 		{
-			newexpr = (Node *)
-				search_indexed_tlist_for_sortgroupref(tle->expr,
-													  tle->ressortgroupref,
-													  subplan_itlist,
-													  OUTER_VAR);
+
+			/*
+			 * WIP: parallel grouping sets
+			 *
+			 * This is an ugly hack to make 'gset_id' evaluated for partial
+			 * aggregation node.
+			 *
+			 * A more proper way is to fix up the plan to remove 'gset_id'
+			 * from targetlist for nodes beneath partial aggregation node.
+			 */
+			if (IsA(plan, Agg) && ((Agg *)plan)->aggsplit == AGGSPLIT_INITIAL_SERIAL && IsA(tle->expr, GroupingSetId))
+				newexpr = (Node *)tle->expr;
+			else
+				newexpr = (Node *)
+					search_indexed_tlist_for_sortgroupref(tle->expr,
+														  tle->ressortgroupref,
+														  subplan_itlist,
+														  OUTER_VAR);
 			if (!newexpr)
 				newexpr = fix_upper_expr(root,
 										 (Node *) tle->expr,

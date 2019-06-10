@@ -747,6 +747,11 @@ contain_volatile_functions_walker(Node *node, void *context)
 		/* NextValueExpr is volatile */
 		return true;
 	}
+	else if (IsA(node, GroupingSetId))
+	{
+		/* GroupingId is volatile */
+		return true;
+	}
 
 	/*
 	 * See notes in contain_mutable_functions_walker about why we treat

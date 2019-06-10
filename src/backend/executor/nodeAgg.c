@@ -1898,6 +1898,7 @@ agg_retrieve_direct(AggState *aggstate)
 		Assert(aggstate->projected_set >= 0);
 
 		currentSet = aggstate->projected_set;
+		econtext->groupingset_id = aggstate->num_hashes + currentSet;
 
 		prepare_projection_slot(aggstate, econtext->ecxt_outertuple, currentSet);
 
@@ -2068,6 +2069,7 @@ agg_retrieve_hash_table(AggState *aggstate)
 		 * non-aggregated input columns in the qual and tlist.
 		 */
 		econtext->ecxt_outertuple = firstSlot;
+		econtext->groupingset_id = aggstate->current_set;
 
 		prepare_projection_slot(aggstate,
 								econtext->ecxt_outertuple,
