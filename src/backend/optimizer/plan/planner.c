@@ -176,7 +176,8 @@ static void consider_groupingsets_paths(PlannerInfo *root,
 										bool can_hash,
 										grouping_sets_data *gd,
 										const AggClauseCosts *agg_costs,
-										double dNumGroups);
+										double dNumGroups,
+										AggSplit aggsplit);
 static RelOptInfo *create_window_paths(PlannerInfo *root,
 									   RelOptInfo *input_rel,
 									   PathTarget *input_target,
@@ -4189,7 +4190,8 @@ consider_groupingsets_paths(PlannerInfo *root,
 							bool can_hash,
 							grouping_sets_data *gd,
 							const AggClauseCosts *agg_costs,
-							double dNumGroups)
+							double dNumGroups,
+							AggSplit aggsplit)
 {
 	Query	   *parse = root->parse;
 
@@ -4351,6 +4353,7 @@ consider_groupingsets_paths(PlannerInfo *root,
 										  path,
 										  (List *) parse->havingQual,
 										  strat,
+										  aggsplit,
 										  new_rollups,
 										  agg_costs,
 										  dNumGroups));
@@ -4508,6 +4511,7 @@ consider_groupingsets_paths(PlannerInfo *root,
 											  path,
 											  (List *) parse->havingQual,
 											  AGG_MIXED,
+											  aggsplit,
 											  rollups,
 											  agg_costs,
 											  dNumGroups));
@@ -4524,6 +4528,7 @@ consider_groupingsets_paths(PlannerInfo *root,
 										  path,
 										  (List *) parse->havingQual,
 										  AGG_SORTED,
+										  aggsplit,
 										  gd->rollups,
 										  agg_costs,
 										  dNumGroups));
@@ -6412,7 +6417,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 				{
 					consider_groupingsets_paths(root, grouped_rel,
 												path, true, can_hash,
-												gd, agg_costs, dNumGroups);
+												gd, agg_costs, dNumGroups, AGGSPLIT_SIMPLE);
 				}
 				else if (parse->hasAggs)
 				{
@@ -6479,7 +6484,14 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 													 -1.0);
 				}
 
-				if (parse->hasAggs)
+				/*
+				 * parallel grouping sets
+				 */
+				if (parse->groupingSets)
+					consider_groupingsets_paths(root, grouped_rel,
+												path, true, can_hash,
+												gd, agg_final_costs, dNumGroups, AGGSPLIT_FINAL_DESERIAL);
+				else if (parse->hasAggs)
 					add_path(grouped_rel, (Path *)
 							 create_agg_path(root,
 											 grouped_rel,
@@ -6514,7 +6526,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 			 */
 			consider_groupingsets_paths(root, grouped_rel,
 										cheapest_path, false, true,
-										gd, agg_costs, dNumGroups);
+										gd, agg_costs, dNumGroups, AGGSPLIT_SIMPLE);
 		}
 		else
 		{
@@ -6562,17 +6574,27 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 														  dNumGroups);
 
 			if (hashaggtablesize < work_mem * 1024L)
-				add_path(grouped_rel, (Path *)
-						 create_agg_path(root,
-										 grouped_rel,
-										 path,
-										 grouped_rel->reltarget,
-										 AGG_HASHED,
-										 AGGSPLIT_FINAL_DESERIAL,
-										 parse->groupClause,
-										 havingQual,
-										 agg_final_costs,
-										 dNumGroups));
+			{
+				/*
+				 * parallel grouping sets
+				 */
+				if (parse->groupingSets)
+					consider_groupingsets_paths(root, grouped_rel,
+												path, false, true,
+												gd, agg_final_costs, dNumGroups, AGGSPLIT_FINAL_DESERIAL);
+				else
+					add_path(grouped_rel, (Path *)
+							 create_agg_path(root,
+											 grouped_rel,
+											 path,
+											 grouped_rel->reltarget,
+											 AGG_HASHED,
+											 AGGSPLIT_FINAL_DESERIAL,
+											 parse->groupClause,
+											 havingQual,
+											 agg_final_costs,
+											 dNumGroups));
+			}
 		}
 	}
 
@@ -6956,11 +6978,6 @@ can_partial_agg(PlannerInfo *root, const AggClauseCosts *agg_costs)
 		 * We don't know how to do parallel aggregation unless we have either
 		 * some aggregates or a grouping clause.
 		 */
-		return false;
-	}
-	else if (parse->groupingSets)
-	{
-		/* We don't know how to do grouping sets in parallel. */
 		return false;
 	}
 	else if (agg_costs->hasNonPartial || agg_costs->hasNonSerial)
