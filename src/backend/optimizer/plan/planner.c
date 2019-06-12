@@ -5203,7 +5203,15 @@ make_partial_grouping_target(PlannerInfo *root,
 	foreach(lc, grouping_target->exprs)
 	{
 		Expr	   *expr = (Expr *) lfirst(lc);
-		Index		sgref = get_pathtarget_sortgroupref(grouping_target, i);
+		Index		sgref = get_pathtarget_sortgroupref(grouping_target, i++);
+
+		/*
+		 * GroupingFunc does not need to be evaluated in Partial Aggregate,
+		 * since Partial Aggregate will not handle multiple grouping sets at
+		 * once.
+		 */
+		if (IsA(expr, GroupingFunc))
+			continue;
 
 		if (sgref && parse->groupClause &&
 			get_sortgroupref_clause_noerr(sgref, parse->groupClause) != NULL)
@@ -5222,8 +5230,6 @@ make_partial_grouping_target(PlannerInfo *root,
 			 */
 			non_group_cols = lappend(non_group_cols, expr);
 		}
-
-		i++;
 	}
 
 	/*
