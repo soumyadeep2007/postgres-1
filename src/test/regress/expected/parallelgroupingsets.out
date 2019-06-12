@@ -133,8 +133,8 @@ select c1, c2, avg(c3) from gstest group by grouping sets((c1,c2),(c1)) order by
 
 explain (costs off, verbose)
 select c1, c2, c3, avg(c3) from gstest group by grouping sets((c1,c2),(c1), (c2,c3));
-                         QUERY PLAN                         
-------------------------------------------------------------
+                          QUERY PLAN                           
+---------------------------------------------------------------
  Finalize GroupAggregate
    Output: c1, c2, c3, avg(c3)
    Group Key: gstest.c1, gstest.c2
@@ -149,7 +149,7 @@ select c1, c2, c3, avg(c3) from gstest group by grouping sets((c1,c2),(c1), (c2,
                Group Key: gstest.c1, gstest.c2, gstest.c3
                ->  Sort
                      Output: c1, c2, c3
-                     Sort Key: gstest.c1, gstest.c2
+                     Sort Key: gstest.c1, gstest.c2, gstest.c3
                      ->  Parallel Seq Scan on public.gstest
                            Output: c1, c2, c3
 (17 rows)

@@ -6762,11 +6762,28 @@ create_partial_grouping_paths(PlannerInfo *root,
 			{
 				/* Sort the cheapest partial path, if it isn't already */
 				if (!is_sorted)
+				{
+					List *pathkeys;
+
+					/*
+					 * If we are performing Partial Aggregate for grouping
+					 * sets, we need to sort by all the columns in
+					 * parse->groupClause.
+					 */
+					if (parse->groupingSets)
+						pathkeys =
+							make_pathkeys_for_sortclauses(root,
+														  parse->groupClause,
+														  root->processed_tlist);
+					else
+						pathkeys = root->group_pathkeys;
+
 					path = (Path *) create_sort_path(root,
 													 partially_grouped_rel,
 													 path,
-													 root->group_pathkeys,
+													 pathkeys,
 													 -1.0);
+				}
 
 				if (parse->hasAggs)
 					add_path(partially_grouped_rel, (Path *)
@@ -6806,11 +6823,28 @@ create_partial_grouping_paths(PlannerInfo *root,
 			{
 				/* Sort the cheapest partial path, if it isn't already */
 				if (!is_sorted)
+				{
+					List *pathkeys;
+
+					/*
+					 * If we are performing Partial Aggregate for grouping
+					 * sets, we need to sort by all the columns in
+					 * parse->groupClause.
+					 */
+					if (parse->groupingSets)
+						pathkeys =
+							make_pathkeys_for_sortclauses(root,
+														  parse->groupClause,
+														  root->processed_tlist);
+					else
+						pathkeys = root->group_pathkeys;
+
 					path = (Path *) create_sort_path(root,
 													 partially_grouped_rel,
 													 path,
-													 root->group_pathkeys,
+													 pathkeys,
 													 -1.0);
+				}
 
 				if (parse->hasAggs)
 					add_partial_path(partially_grouped_rel, (Path *)
