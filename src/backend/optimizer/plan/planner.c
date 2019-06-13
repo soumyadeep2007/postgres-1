@@ -148,7 +148,8 @@ static void standard_qp_callback(PlannerInfo *root, void *extra);
 static double get_number_of_groups(PlannerInfo *root,
 								   double path_rows,
 								   grouping_sets_data *gd,
-								   List *target_list);
+								   List *target_list,
+								   bool is_partial);
 static RelOptInfo *create_grouping_paths(PlannerInfo *root,
 										 RelOptInfo *input_rel,
 										 PathTarget *target,
@@ -3671,6 +3672,7 @@ standard_qp_callback(PlannerInfo *root, void *extra)
  * path_rows: number of output rows from scan/join step
  * gd: grouping sets data including list of grouping sets and their clauses
  * target_list: target list containing group clause references
+ * is_partial: whether the grouping is in partial aggregate
  *
  * If doing grouping sets, we also annotate the gsets data with the estimates
  * for each set and each individual rollup list, with a view to later
@@ -3680,7 +3682,8 @@ static double
 get_number_of_groups(PlannerInfo *root,
 					 double path_rows,
 					 grouping_sets_data *gd,
-					 List *target_list)
+					 List *target_list,
+					 bool is_partial)
 {
 	Query	   *parse = root->parse;
 	double		dNumGroups;
@@ -3689,7 +3692,7 @@ get_number_of_groups(PlannerInfo *root,
 	{
 		List	   *groupExprs;
 
-		if (parse->groupingSets)
+		if (parse->groupingSets && !is_partial)
 		{
 			/* Add up the estimates for each grouping set */
 			ListCell   *lc;
@@ -3752,7 +3755,7 @@ get_number_of_groups(PlannerInfo *root,
 		}
 		else
 		{
-			/* Plain GROUP BY */
+			/* Plain GROUP BY, or grouping is in partial aggregate */
 			groupExprs = get_sortgrouplist_exprs(parse->groupClause,
 												 target_list);
 
@@ -4145,7 +4148,8 @@ create_ordinary_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
 	dNumGroups = get_number_of_groups(root,
 									  cheapest_path->rows,
 									  gd,
-									  extra->targetList);
+									  extra->targetList,
+									  false);
 
 	/* Build final grouping paths */
 	add_paths_to_grouping_rel(root, input_rel, grouped_rel,
@@ -6740,13 +6744,15 @@ create_partial_grouping_paths(PlannerInfo *root,
 			get_number_of_groups(root,
 								 cheapest_total_path->rows,
 								 gd,
-								 extra->targetList);
+								 extra->targetList,
+								 true);
 	if (cheapest_partial_path != NULL)
 		dNumPartialPartialGroups =
 			get_number_of_groups(root,
 								 cheapest_partial_path->rows,
 								 gd,
-								 extra->targetList);
+								 extra->targetList,
+								 true);
 
 	if (can_sort && cheapest_total_path != NULL)
 	{
