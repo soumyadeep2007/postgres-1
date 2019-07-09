@@ -237,7 +237,7 @@ static RelOptInfo *create_partial_grouping_paths(PlannerInfo *root,
 												 grouping_sets_data *gd,
 												 GroupPathExtraData *extra,
 												 bool force_rel_creation);
-static RelOptInfo *copy_upperrel_group(RelOptInfo *grouped_rel);
+static RelOptInfo *flat_copy_grouped_rel(RelOptInfo *grouped_rel);
 static void gather_grouping_paths(PlannerInfo *root, RelOptInfo *rel);
 static bool can_partial_agg(PlannerInfo *root,
 							const AggClauseCosts *agg_costs);
@@ -4050,7 +4050,9 @@ create_grouping_paths(PlannerInfo *root,
 				List *orig_group_pathkeys;
 				List *orig_group_clause;
 
-				rollup_grouped_rel = copy_upperrel_group(grouped_rel);
+				rollup_grouped_rel = flat_copy_grouped_rel(grouped_rel);
+				rollup_grouped_rel->reltarget = copy_pathtarget(grouped_rel->reltarget);
+				rollup_grouped_rel->pathlist = NIL;
 				adjust_rollup_targetlist(root, rollup_grouped_rel, rd->groupClause);
 
 				rollup_gd = palloc0(sizeof(grouping_sets_data));
@@ -6890,6 +6892,10 @@ create_partial_grouping_paths(PlannerInfo *root,
 	partially_grouped_rel = fetch_upper_rel(root,
 											UPPERREL_PARTIAL_GROUP_AGG,
 											grouped_rel->relids);
+
+	if ((extra->flags & GROUPING_WITH_APPEND) != 0)
+		partially_grouped_rel = flat_copy_grouped_rel(partially_grouped_rel);
+
 	partially_grouped_rel->consider_parallel =
 		grouped_rel->consider_parallel;
 	partially_grouped_rel->reloptkind = grouped_rel->reloptkind;
@@ -6897,9 +6903,6 @@ create_partial_grouping_paths(PlannerInfo *root,
 	partially_grouped_rel->userid = grouped_rel->userid;
 	partially_grouped_rel->useridiscurrent = grouped_rel->useridiscurrent;
 	partially_grouped_rel->fdwroutine = grouped_rel->fdwroutine;
-
-	if ((extra->flags & GROUPING_WITH_APPEND) != 0)
-		partially_grouped_rel = copy_upperrel_group(partially_grouped_rel);
 
 	/*
 	 * Build target list for partial aggregate paths.  These paths cannot just
@@ -7102,27 +7105,27 @@ create_partial_grouping_paths(PlannerInfo *root,
 		if (hashaggtablesize < work_mem * 1024L &&
 			cheapest_partial_path != NULL)
 		{
-				/* WIP: parallel grouping sets */
-				if (parse->groupingSets)
-				{
-					consider_groupingsets_paths(root, partially_grouped_rel,
-												cheapest_partial_path, false, true,
-												gd, agg_partial_costs, dNumPartialGroups, true, AGGSPLIT_INITIAL_SERIAL);
-				}
-				else
-				{
-					add_partial_path(partially_grouped_rel, (Path *)
-									 create_agg_path(root,
-													 partially_grouped_rel,
-													 cheapest_partial_path,
-													 partially_grouped_rel->reltarget,
-													 AGG_HASHED,
-													 AGGSPLIT_INITIAL_SERIAL,
-													 parse->groupClause,
-													 NIL,
-													 agg_partial_costs,
-													 dNumPartialPartialGroups));
-				}
+			/* WIP: parallel grouping sets */
+			if (parse->groupingSets)
+			{
+				consider_groupingsets_paths(root, partially_grouped_rel,
+											cheapest_partial_path, false, true,
+											gd, agg_partial_costs, dNumPartialGroups, true, AGGSPLIT_INITIAL_SERIAL);
+			}
+			else
+			{
+				add_partial_path(partially_grouped_rel, (Path *)
+								 create_agg_path(root,
+												 partially_grouped_rel,
+												 cheapest_partial_path,
+												 partially_grouped_rel->reltarget,
+												 AGG_HASHED,
+												 AGGSPLIT_INITIAL_SERIAL,
+												 parse->groupClause,
+												 NIL,
+												 agg_partial_costs,
+												 dNumPartialPartialGroups));
+			}
 		}
 	}
 
@@ -7145,15 +7148,13 @@ create_partial_grouping_paths(PlannerInfo *root,
 }
 
 static RelOptInfo *
-copy_upperrel_group(RelOptInfo *grouped_rel)
+flat_copy_grouped_rel(RelOptInfo *grouped_rel)
 {
 	RelOptInfo *newrel;
 
-	/* TODO: Double check code: Populate new RelOptInfo more correctly. */
+	/* TODO: Check callers to see what need to populate after flat copying. */
 	newrel = makeNode(RelOptInfo);
 	memcpy(newrel, grouped_rel, sizeof(RelOptInfo));
-	newrel->reltarget = copy_pathtarget(newrel->reltarget);
-	newrel->pathlist = NIL;
 
 	return newrel;
 }
