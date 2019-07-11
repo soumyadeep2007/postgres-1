@@ -184,7 +184,6 @@ static void consider_groupingsets_paths(PlannerInfo *root,
 										grouping_sets_data *gd,
 										const AggClauseCosts *agg_costs,
 										double dNumGroups,
-										bool is_partial,
 										AggSplit aggsplit);
 static RelOptInfo *create_window_paths(PlannerInfo *root,
 									   RelOptInfo *input_rel,
@@ -4381,10 +4380,13 @@ consider_groupingsets_paths(PlannerInfo *root,
 							grouping_sets_data *gd,
 							const AggClauseCosts *agg_costs,
 							double dNumGroups,
-							bool is_partial,
 							AggSplit aggsplit)
 {
 	Query	   *parse = root->parse;
+	Path	   *gs_path;
+	bool		is_partial;
+
+	is_partial = (aggsplit == AGGSPLIT_INITIAL_SERIAL);
 
 	/*
 	 * If we're not being offered sorted input, then only consider plans that
@@ -4538,28 +4540,20 @@ consider_groupingsets_paths(PlannerInfo *root,
 			strat = AGG_MIXED;
 		}
 
+		gs_path = (Path *) create_groupingsets_path(root,
+													grouped_rel,
+													path,
+													(List *) parse->havingQual,
+													strat,
+													aggsplit,
+													new_rollups,
+													agg_costs,
+													dNumGroups);
+
 		if (is_partial)
-			add_partial_path(grouped_rel, (Path *)
-					 create_groupingsets_path(root,
-											  grouped_rel,
-											  path,
-											  (List *) parse->havingQual,
-											  strat,
-											  aggsplit,
-											  new_rollups,
-											  agg_costs,
-											  dNumGroups));
+			add_partial_path(grouped_rel, gs_path);
 		else
-			add_path(grouped_rel, (Path *)
-					 create_groupingsets_path(root,
-											  grouped_rel,
-											  path,
-											  (List *) parse->havingQual,
-											  strat,
-											  aggsplit,
-											  new_rollups,
-											  agg_costs,
-											  dNumGroups));
+			add_path(grouped_rel, gs_path);
 		return;
 	}
 
@@ -4708,28 +4702,20 @@ consider_groupingsets_paths(PlannerInfo *root,
 
 		if (rollups)
 		{
+			gs_path = (Path *) create_groupingsets_path(root,
+														grouped_rel,
+														path,
+														(List *) parse->havingQual,
+														AGG_MIXED,
+														aggsplit,
+														rollups,
+														agg_costs,
+														dNumGroups);
+
 			if (is_partial)
-				add_partial_path(grouped_rel, (Path *)
-						 create_groupingsets_path(root,
-												  grouped_rel,
-												  path,
-												  (List *) parse->havingQual,
-												  AGG_MIXED,
-												  aggsplit,
-												  rollups,
-												  agg_costs,
-												  dNumGroups));
+				add_partial_path(grouped_rel, gs_path);
 			else
-				add_path(grouped_rel, (Path *)
-						 create_groupingsets_path(root,
-												  grouped_rel,
-												  path,
-												  (List *) parse->havingQual,
-												  AGG_MIXED,
-												  aggsplit,
-												  rollups,
-												  agg_costs,
-												  dNumGroups));
+				add_path(grouped_rel, gs_path);
 		}
 	}
 
@@ -4738,28 +4724,20 @@ consider_groupingsets_paths(PlannerInfo *root,
 	 */
 	if (!gd->unsortable_sets)
 	{
+		gs_path = (Path *) create_groupingsets_path(root,
+													grouped_rel,
+													path,
+													(List *) parse->havingQual,
+													AGG_SORTED,
+													aggsplit,
+													gd->rollups,
+													agg_costs,
+													dNumGroups);
+
 		if (is_partial)
-			add_partial_path(grouped_rel, (Path *)
-					 create_groupingsets_path(root,
-											  grouped_rel,
-											  path,
-											  (List *) parse->havingQual,
-											  AGG_SORTED,
-											  aggsplit,
-											  gd->rollups,
-											  agg_costs,
-											  dNumGroups));
+			add_partial_path(grouped_rel, gs_path);
 		else
-			add_path(grouped_rel, (Path *)
-					 create_groupingsets_path(root,
-											  grouped_rel,
-											  path,
-											  (List *) parse->havingQual,
-											  AGG_SORTED,
-											  aggsplit,
-											  gd->rollups,
-											  agg_costs,
-											  dNumGroups));
+			add_path(grouped_rel, gs_path);
 	}
 }
 
@@ -6646,7 +6624,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 				{
 					consider_groupingsets_paths(root, grouped_rel,
 												path, true, can_hash,
-												gd, agg_costs, dNumGroups, false, AGGSPLIT_SIMPLE);
+												gd, agg_costs, dNumGroups, AGGSPLIT_SIMPLE);
 				}
 				else if (parse->hasAggs)
 				{
@@ -6748,7 +6726,7 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 			 */
 			consider_groupingsets_paths(root, grouped_rel,
 										cheapest_path, false, true,
-										gd, agg_costs, dNumGroups, false, AGGSPLIT_SIMPLE);
+										gd, agg_costs, dNumGroups, AGGSPLIT_SIMPLE);
 		}
 		else
 		{
@@ -7033,7 +7011,7 @@ create_partial_grouping_paths(PlannerInfo *root,
 				{
 					consider_groupingsets_paths(root, partially_grouped_rel,
 												path, true, can_hash,
-												gd, agg_partial_costs, dNumPartialGroups, true, AGGSPLIT_INITIAL_SERIAL);
+												gd, agg_partial_costs, dNumPartialGroups, AGGSPLIT_INITIAL_SERIAL);
 				}
 				else if (parse->hasAggs)
 					add_partial_path(partially_grouped_rel, (Path *)
@@ -7110,7 +7088,7 @@ create_partial_grouping_paths(PlannerInfo *root,
 			{
 				consider_groupingsets_paths(root, partially_grouped_rel,
 											cheapest_partial_path, false, true,
-											gd, agg_partial_costs, dNumPartialGroups, true, AGGSPLIT_INITIAL_SERIAL);
+											gd, agg_partial_costs, dNumPartialGroups, AGGSPLIT_INITIAL_SERIAL);
 			}
 			else
 			{
