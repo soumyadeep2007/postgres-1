@@ -3692,6 +3692,14 @@ get_number_of_groups(PlannerInfo *root,
 	{
 		List	   *groupExprs;
 
+		/*
+		 * Grouping sets
+		 *
+		 * If we are doing partial aggregation for grouping sets, we are
+		 * supposed to estimate number of groups based on all the columns in
+		 * parse->groupClause.  Otherwise, we can add up the estimates for
+		 * each grouping set.
+		 */
 		if (parse->groupingSets && !is_partial)
 		{
 			/* Add up the estimates for each grouping set */
