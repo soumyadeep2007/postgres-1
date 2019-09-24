@@ -1674,6 +1674,7 @@ typedef struct GroupingSetData
 {
 	NodeTag		type;
 	List	   *set;			/* grouping set as list of sortgrouprefs */
+	int			grpsetId;			/* unique grouping set identifier */
 	double		numGroups;		/* est. number of result groups */
 } GroupingSetData;
 
@@ -1699,6 +1700,7 @@ typedef struct GroupingSetsPath
 	AggStrategy aggstrategy;	/* basic strategy */
 	List	   *rollups;		/* list of RollupData */
 	List	   *qual;			/* quals (HAVING quals), if any */
+	AggSplit   aggsplit;
 } GroupingSetsPath;
 
 /*
