@@ -1567,8 +1567,19 @@ lookup_hash_entries(AggState *aggstate)
 		if (!mapping)
 			return;
 
-		select_current_set(aggstate, mapping->index, true);
-		pergroup[mapping->index] = lookup_hash_entry(aggstate)->additional;
+		for (setno = 0; setno < numHashes; setno++)
+		{
+			if (setno == mapping->index)
+			{
+				select_current_set(aggstate, setno, true);
+				pergroup[setno] = lookup_hash_entry(aggstate)->additional;
+			}
+			else
+			{
+				pergroup[setno] = NULL;
+			}
+		}
+
 		return;
 	}
 
@@ -2014,7 +2025,7 @@ agg_dispatch_input_tuples(AggState *aggstate)
 		{
 			PlanState *outerNode = outerPlanState(aggstate);
 			TupleDesc tupDesc = ExecGetResultType(outerNode);
-			Sort *sortnode = (Sort *) outerNode->plan;
+			Sort *sortnode = (Sort *) perphase->aggnode->plan.lefttree;
 
 			Assert(perphase->aggstrategy == AGG_SORTED);
 

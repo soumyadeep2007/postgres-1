@@ -2202,7 +2202,7 @@ create_groupingsets_plan(PlannerInfo *root, GroupingSetsPath *best_path)
 	 * never be grouping in an UPDATE/DELETE; but let's Assert that.
 	 */
 	Assert(root->inhTargetKind == INHKIND_NONE);
-	Assert(root->grouping_map == NULL);
+//	Assert(root->grouping_map == NULL);
 	root->grouping_map = grouping_map;
 
 	/*
