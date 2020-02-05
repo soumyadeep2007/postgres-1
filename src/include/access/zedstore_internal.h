@@ -56,6 +56,35 @@ typedef struct
 	bool		attbyval;
 } attstream_buffer;
 
+typedef struct
+{
+	zstid		buffered_tids[60];
+	Datum		buffered_datums[60];
+	bool		buffered_isnulls[60];
+	int			num_buffered_rows;
+
+	attstream_buffer chunks;
+
+} attbuffer;
+
+typedef struct
+{
+	Oid			relid;			/* table's OID (hash key) */
+	char		status;			/* hash entry status */
+
+	int			natts;			/* # of attributes on table might change, if it's ALTERed */
+	attbuffer	*attbuffers;
+
+	uint64		num_repeated_inserts;	/* number of inserted tuples since last flush */
+
+	TransactionId reserved_tids_xid;
+	CommandId	reserved_tids_cid;
+	zstid		reserved_tids_start;
+	zstid		reserved_tids_next;
+	zstid		reserved_tids_end;
+
+} tuplebuffer;
+
 /*
  * attstream_decoder is used to unpack an attstream into tids/datums/isnulls.
  */
@@ -1021,6 +1050,8 @@ zsbt_attr_fetch(ZSAttrTreeScan *scan, Datum *datum, bool *isnull, zstid tid)
 }
 
 extern PGDLLIMPORT const TupleTableSlotOps TTSOpsZedstore;
+
+extern tuplebuffer *get_tuplebuffer(Relation rel);
 
 /* prototypes for functions in zedstore_meta.c */
 extern void zsmeta_initmetapage(Relation rel);

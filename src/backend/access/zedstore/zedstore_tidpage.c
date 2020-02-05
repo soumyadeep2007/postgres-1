@@ -1398,8 +1398,8 @@ zsbt_tid_add_items(Relation rel, Buffer buf, List *newitems, zs_pending_undo_op 
 
 		MarkBufferDirty(buf);
 
-		if (RelationNeedsWAL(rel))
-			zsbt_wal_log_tidleaf_items(rel, buf, startoff, false, newitems, undo_op);
+		/*if (RelationNeedsWAL(rel))
+			zsbt_wal_log_tidleaf_items(rel, buf, startoff, false, newitems, undo_op);*/
 
 		END_CRIT_SECTION();
 
@@ -1532,8 +1532,8 @@ zsbt_tid_replace_item(Relation rel, Buffer buf, OffsetNumber targetoff, List *ne
 		if (undo_op)
 			zsundo_finish_pending_op(undo_op, (char *) &undo_op->payload);
 
-		if (RelationNeedsWAL(rel))
-			zsbt_wal_log_tidleaf_items(rel, buf, targetoff, true, newitems, undo_op);
+		/*if (RelationNeedsWAL(rel))
+			zsbt_wal_log_tidleaf_items(rel, buf, targetoff, true, newitems, undo_op);*/
 		END_CRIT_SECTION();
 
 #ifdef USE_ASSERT_CHECKING

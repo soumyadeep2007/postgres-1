@@ -436,6 +436,7 @@ zsbt_attr_add(Relation rel, AttrNumber attno, attstream_buffer *attbuf)
 	int			lowerstreamsz;
 	uint16		orig_pd_lower;
 	uint16		new_pd_lower;
+	zstid		orig_page_firsttid;
 	zstid		firstnewtid;
 	zstid 		splittid;
 	zsbt_attr_repack_context cxt;

@@ -33,35 +33,6 @@
 
 #define ATTBUFFER_SIZE				(1024 * 1024)
 
-typedef struct
-{
-	zstid		buffered_tids[60];
-	Datum		buffered_datums[60];
-	bool		buffered_isnulls[60];
-	int			num_buffered_rows;
-
-	attstream_buffer chunks;
-
-} attbuffer;
-
-typedef struct
-{
-	Oid			relid;			/* table's OID (hash key) */
-	char		status;			/* hash entry status */
-
-	int			natts;			/* # of attributes on table might change, if it's ALTERed */
-	attbuffer	*attbuffers;
-
-	uint64		num_repeated_inserts;	/* number of inserted tuples since last flush */
-
-	TransactionId reserved_tids_xid;
-	CommandId	reserved_tids_cid;
-	zstid		reserved_tids_start;
-	zstid		reserved_tids_next;
-	zstid		reserved_tids_end;
-
-} tuplebuffer;
-
 
 /* define hashtable mapping block numbers to PagetableEntry's */
 #define SH_PREFIX tuplebuffers
@@ -85,7 +56,7 @@ static void tuplebuffer_kill_unused_reserved_tids(Relation rel, tuplebuffer *tup
 static MemoryContext tuplebuffers_cxt = NULL;
 static struct tuplebuffers_hash *tuplebuffers = NULL;
 
-static tuplebuffer *
+tuplebuffer *
 get_tuplebuffer(Relation rel)
 {
 	bool		found;
@@ -155,7 +126,7 @@ zsbt_tuplebuffer_allocate_tid(Relation rel, TransactionId xid, CommandId cid)
 		 * This insertion is for a different XID or CID than before. (Or this
 		 * is the first insertion.)
 		 */
-		tuplebuffer_kill_unused_reserved_tids(rel, tupbuffer);
+		//tuplebuffer_kill_unused_reserved_tids(rel, tupbuffer);
 		tupbuffer->num_repeated_inserts = 0;
 
 		tupbuffer->reserved_tids_xid = xid;
@@ -408,7 +379,7 @@ tuplebuffer_kill_unused_reserved_tids(Relation rel, tuplebuffer *tupbuffer)
 static void
 tuplebuffer_flush_internal(Relation rel, tuplebuffer *tupbuffer)
 {
-	tuplebuffer_kill_unused_reserved_tids(rel, tupbuffer);
+	//tuplebuffer_kill_unused_reserved_tids(rel, tupbuffer);
 
 	/* Flush the attribute data */
 	for (AttrNumber attno = 1; attno <= tupbuffer->natts; attno++)

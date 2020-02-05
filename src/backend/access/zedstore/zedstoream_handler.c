@@ -254,6 +254,8 @@ zedstoream_multi_insert(Relation relation, TupleTableSlot **slots, int ntuples,
 	TransactionId xid = GetCurrentTransactionId();
 	zstid		firsttid;
 	zstid	   *tids;
+	tuplebuffer *tb = get_tuplebuffer(relation);
+	int N = 10;
 
 	if (ntuples == 0)
 	{
@@ -261,12 +263,34 @@ zedstoream_multi_insert(Relation relation, TupleTableSlot **slots, int ntuples,
 		return;
 	}
 
-	firsttid = zsbt_tid_multi_insert(relation, ntuples, xid, cid,
-									 INVALID_SPECULATIVE_TOKEN, InvalidUndoPtr);
+	/*
+	 * TODO: Have to account for different xids and cids.
+	 */
+	if (tb->reserved_tids_end - tb->reserved_tids_start > ntuples)
+	{
+		/*
+		 * We have enough reserved tids to cater to this request.
+		 */
+		firsttid = tb->reserved_tids_start;
+	}
+	else
+	{
+		/*
+		 * Allocate a batch of (N * ntuples) tids. TODO: worry about unused tids
+		 * that were buffered before doing the new allocation.
+		 */
+		firsttid = zsbt_tid_multi_insert(relation, N * ntuples, xid, cid,
+										 INVALID_SPECULATIVE_TOKEN, InvalidUndoPtr);
+		tb->reserved_tids_end = firsttid + (N * ntuples) - 1;
+	}
 
 	tids = palloc(ntuples * sizeof(zstid));
 	for (i = 0; i < ntuples; i++)
 		tids[i] = firsttid + i;
+	/*
+	 * Set up for next multi-insert
+	 */
+	tb->reserved_tids_start = tids[ntuples - 1] + 1;
 
 	/*
 	 * We only need to check for table-level SSI locks. Our
