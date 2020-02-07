@@ -34,8 +34,6 @@ static zs_split_stack *zsbt_split_internal_page(Relation rel, AttrNumber attno,
 												Buffer leftbuf, OffsetNumber newoff, List *downlinks);
 static zs_split_stack *zsbt_merge_pages(Relation rel, AttrNumber attno, Buffer leftbuf, Buffer rightbuf, bool target_is_left);
 
-static int zsbt_binsrch_internal(zstid key, ZSBtreeInternalPageItem *arr, int arr_elems);
-
 /*
  * Find the page containing the given key TID at the given level.
  *
@@ -920,7 +918,7 @@ zs_apply_split_changes(Relation rel, zs_split_stack *stack, zs_pending_undo_op *
 		pfree(xlrec);
 }
 
-static int
+int
 zsbt_binsrch_internal(zstid key, ZSBtreeInternalPageItem *arr, int arr_elems)
 {
 	int			low,

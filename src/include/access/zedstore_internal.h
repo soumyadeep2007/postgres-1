@@ -982,6 +982,7 @@ extern zs_split_stack *zsbt_newroot(Relation rel, AttrNumber attno, int level, L
 extern zs_split_stack *zsbt_insert_downlinks(Relation rel, AttrNumber attno,
 					  zstid leftlokey, BlockNumber leftblkno, int level,
 					  List *downlinks);
+extern int zsbt_binsrch_internal(zstid key, ZSBtreeInternalPageItem *arr, int arr_elems);
 extern void zsbt_attr_remove(Relation rel, AttrNumber attno, IntegerSet *tids);
 extern zs_split_stack *zsbt_unlink_page(Relation rel, AttrNumber attno, Buffer buf, int level);
 extern zs_split_stack *zs_new_split_stack_entry(Buffer buf, Page page);

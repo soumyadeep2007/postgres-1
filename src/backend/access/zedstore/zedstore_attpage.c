@@ -460,6 +460,117 @@ zsbt_attr_add(Relation rel, AttrNumber attno, attstream_buffer *attbuf)
 	/* Is there space to add the new attstream as it is? */
 	orig_pd_lower = ((PageHeader) origpage)->pd_lower;
 
+	/*
+	 * Obtain the lowest tid in the leaf.
+	 */
+	if (lowerstream)
+	{
+		attstream_buffer tmpbuf;
+		init_attstream_buffer_from_stream(&tmpbuf, attr->attbyval,
+										  attr->attlen, lowerstream, GetMemoryChunkContext(attbuf->data));
+		orig_page_firsttid = tmpbuf.firsttid;
+	}
+	if (upperstream)
+	{
+		attstream_buffer tmpbuf;
+		init_attstream_buffer_from_stream(&tmpbuf, attr->attbyval,
+										  attr->attlen, upperstream, GetMemoryChunkContext(attbuf->data));
+		orig_page_firsttid = tmpbuf.firsttid < orig_page_firsttid ? tmpbuf.firsttid :  orig_page_firsttid;
+	}
+
+	/*
+	 * Conditional to detect an insert into a leaf where the leaf is full already
+	 * and the insert's tid range is to the 'left' of the leaf's actual tid range.
+	 */
+	if ((origpageopaque->zs_flags & ZSBT_ROOT) == 0 &&
+		(lowerstream || upperstream) &&
+		(SizeOfZSAttStreamHeader + (attbuf->len - attbuf->cursor) >
+			PageGetExactFreeSpace(origpage)) &&
+		attbuf->firsttid < orig_page_firsttid)
+	{
+		/*
+		 * We need to do a special left split
+		 */
+		ereport(LOG,
+				(errmsg("Special_left_split")));
+		Buffer leftbuf;
+		Page leftpage;
+		ZSBtreePageOpaque *leftopaque;
+		Buffer origpageparentbuf;
+		Page origpageparentpage;
+		int itemno;
+		ZSBtreeInternalPageItem *origpageparent_items;
+		int origpageparent_nitems;
+
+		List	   *new_orig_downlinks = NIL;
+		ZSBtreeInternalPageItem *new_orig_downlink;
+		zs_split_stack *stack;
+
+		/*
+		 * 1. Create a new empty left page and set up it's bounds.
+		 * Then update the parent's earlier downlink to point to the left page.
+		 */
+		leftbuf = zspage_getnewbuf(rel);
+		leftpage = (Page) palloc(BLCKSZ);
+		PageInit(leftpage, BLCKSZ, sizeof(ZSBtreePageOpaque));
+
+		leftopaque = ZSBtreePageGetOpaque(leftpage);
+		leftopaque->zs_attno = attno;
+		leftopaque->zs_next = BufferGetBlockNumber(origbuf);
+		leftopaque->zs_lokey = origpageopaque->zs_lokey;
+		leftopaque->zs_hikey = orig_page_firsttid;
+		leftopaque->zs_level = 0;
+		leftopaque->zs_flags = 0;
+		leftopaque->zs_page_id = ZS_BTREE_PAGE_ID;
+
+		PageRestoreTempPage(leftpage, BufferGetPage(leftbuf));
+
+		origpageparentbuf = zsbt_descend(rel, attno, origpageopaque->zs_lokey, 1, false);
+		origpageparentpage = BufferGetPage(origpageparentbuf);
+		origpageparent_items = ZSBtreeInternalPageGetItems(origpageparentpage);
+		origpageparent_nitems = ZSBtreeInternalPageGetNumItems(origpageparentpage);
+
+		itemno = zsbt_binsrch_internal(origpageopaque->zs_lokey,
+									   origpageparent_items,
+									   origpageparent_nitems);
+		origpageparent_items[itemno].childblk = BufferGetBlockNumber(leftbuf);
+		MarkBufferDirty(origpageparentbuf); // Is this enough to reflect the change to the DL?
+		UnlockReleaseBuffer(origpageparentbuf);
+
+		/*
+		 * 2. Update the lokey of the orig page and create a new downlink
+		 * for this page.
+		 */
+		origpageopaque->zs_lokey = leftopaque->zs_hikey;
+
+		new_orig_downlink = palloc(sizeof(ZSBtreeInternalPageItem));
+		new_orig_downlink->tid      = origpageopaque->zs_lokey;
+		new_orig_downlink->childblk = BufferGetBlockNumber(origbuf);
+		new_orig_downlinks = lappend(new_orig_downlinks, new_orig_downlink);
+		stack = zsbt_insert_downlinks(rel,
+							  attno,
+							  leftopaque->zs_lokey,
+							  BufferGetBlockNumber(leftbuf),
+							  1,
+							  new_orig_downlinks);
+		zs_apply_split_changes(rel, stack, NULL);
+
+		// TODD: worry about critical sections.
+
+		MarkBufferDirty(leftbuf);
+		MarkBufferDirty(origbuf);
+		UnlockReleaseBuffer(leftbuf);
+		UnlockReleaseBuffer(origbuf);
+
+		/*
+		 * Actually write something before returning?
+		 * Right now, simply return and the outer loop will retry the insert.
+		 * A tad inefficient as we have to descend the tree in the outer loop
+		 * again to find the leftbuf.
+		 */
+		return;
+	}
+
 	if (lowerstream == NULL)
 	{
 		/*
