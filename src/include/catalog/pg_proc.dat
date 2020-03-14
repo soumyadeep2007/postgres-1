@@ -10787,6 +10787,13 @@
   proargmodes => '{i,o,o,o}',
   proargnames => '{relid,attnum,num_runs,total_runs}',
   prosrc => 'pg_zs_calculate_adjacent_block' },
+{ oid => '7008', descr => 'Traverse the attribute leaf blocks from left to right for a given relation and attribute #',
+  proname => 'pg_zs_traverse_leaf_pages', prorettype => 'record',
+  proargtypes => 'regclass int4', prorows => '1000', proretset => 't',
+  proallargtypes => '{regclass,int4,int4,int4}',
+  proargmodes => '{i,i,o,o}',
+  proargnames => '{relid,attnum,blockno,attno}',
+  prosrc => 'pg_zs_traverse_leaf_pages' },
 
 # zedstore
 { oid => '7020', descr => 'input zstid',

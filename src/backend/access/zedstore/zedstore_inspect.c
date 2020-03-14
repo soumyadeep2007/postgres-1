@@ -119,6 +119,7 @@ Datum		pg_zs_btree_pages(PG_FUNCTION_ARGS);
 Datum		pg_zs_toast_pages(PG_FUNCTION_ARGS);
 Datum		pg_zs_meta_page(PG_FUNCTION_ARGS);
 Datum		pg_zs_calculate_adjacent_block(PG_FUNCTION_ARGS);
+Datum		pg_zs_traverse_leaf_pages(PG_FUNCTION_ARGS);
 Datum		pg_zs_dump_attstreams(PG_FUNCTION_ARGS);
 Datum		pg_zs_decode_chunk(PG_FUNCTION_ARGS);
 
@@ -1183,6 +1184,104 @@ pg_zs_calculate_adjacent_block(PG_FUNCTION_ARGS)
 
 		tuplestore_putvalues(tupstore, tupdesc, values, nulls);
 	}
+	tuplestore_donestoring(tupstore);
+
+	table_close(rel, AccessShareLock);
+
+	return (Datum) 0;
+}
+
+/*
+ * Prints leaf block numbers of an attribute tree (or tid tree) from left to right.
+ */
+Datum
+pg_zs_traverse_leaf_pages(PG_FUNCTION_ARGS)
+{
+	Oid			relid = PG_GETARG_OID(0);
+	AttrNumber  attno = PG_GETARG_OID(1);
+
+	Buffer buf;
+	Relation	rel;
+	Page		page;
+	ZSBtreePageOpaque *opaque;
+	MemoryContext per_query_ctx;
+	MemoryContext oldcontext;
+
+	Tuplestorestate *tupstore;
+	ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
+	TupleDesc	tupdesc;
+
+	Datum		values[2];
+	bool		nulls[2];
+
+	if (!superuser())
+		ereport(ERROR,
+				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+					(errmsg("must be superuser to use zedstore inspection functions"))));
+
+	rel = table_open(relid, AccessShareLock);
+
+	/*
+	 * Reject attempts to read non-local temporary relations; we would be
+	 * likely to get wrong data since we have no visibility into the owning
+	 * session's local buffers.
+	 */
+	if (RELATION_IS_OTHER_TEMP(rel))
+		ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+					errmsg("cannot access temporary tables of other sessions")));
+
+	/* Switch into long-lived context to construct returned data structures */
+	per_query_ctx = rsinfo->econtext->ecxt_per_query_memory;
+	oldcontext = MemoryContextSwitchTo(per_query_ctx);
+
+	/* Build a tuple descriptor for our result type */
+	if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
+		elog(ERROR, "return type must be a row type");
+
+	tupstore = tuplestore_begin_heap(true, false, work_mem);
+	rsinfo->returnMode = SFRM_Materialize;
+	rsinfo->setResult = tupstore;
+	rsinfo->setDesc = tupdesc;
+
+	MemoryContextSwitchTo(oldcontext);
+
+
+	BlockNumber blkno;
+	buf = zsbt_descend(rel, attno, MinZSTid, 0, true);
+
+	if (buf == InvalidBuffer)
+		elog(ERROR, "No leaf pages found"); 
+
+	page = BufferGetPage(buf);
+	opaque = ZSBtreePageGetOpaque(page);
+	blkno = BufferGetBlockNumber(buf);
+	values[0] = blkno;
+	values[1] = attno;
+	nulls[0] = false;
+	nulls[1] = false;
+	tuplestore_putvalues(tupstore, tupdesc, values, nulls);
+
+	while (opaque->zs_next != InvalidBlockNumber)
+	{
+		UnlockReleaseBuffer(buf);
+
+		buf = ReadBuffer(rel, opaque->zs_next);
+		LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
+		blkno = BufferGetBlockNumber(buf);
+
+		page = BufferGetPage(buf);
+		opaque = ZSBtreePageGetOpaque(page);
+		
+		values[0] = blkno;
+		values[1] = attno;
+		nulls[0] = false;
+		nulls[1] = false;
+		tuplestore_putvalues(tupstore, tupdesc, values, nulls);
+	}
+
+	UnlockReleaseBuffer(buf);
+
 	tuplestore_donestoring(tupstore);
 
 	table_close(rel, AccessShareLock);
